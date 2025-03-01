@@ -1,0 +1,31 @@
+Protocol: BookMarketUpload
+
+Types:
+    Agent U, W;
+    Number N1, N2;
+    Function pk, sk, hash;
+    Message Offer
+
+Knowledge:
+    U: U,W,pk(W),sk(U),pk(U),Offer;
+    W: W,U,pk(U),sk(W),pk(W);
+
+Actions:
+    # Step 1: User initiates offer upload with signed offer
+    U -> W: {U,N1,{Offer,hash(Offer)}sk(U)}pk(W)
+
+    # Step 2: Website acknowledges and challenges
+    W -> U: {W,N1,N2,hash(Offer)}pk(U)
+
+    # Step 3: User confirms challenge
+    U -> W: {U,N2}pk(W)
+
+    # Step 4: Website confirms offer upload
+    W -> U: {W,hash(Offer),"ACCEPTED"}pk(U)
+
+Goals:
+    U authenticates W on N1
+    W authenticates U on N2
+    W authenticates U on Offer
+    secrecy of Offer
+    U authenticates W on hash(Offer)

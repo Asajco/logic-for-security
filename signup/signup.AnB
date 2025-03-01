@@ -1,0 +1,34 @@
+Protocol: BookMarketSignup
+
+Types:
+    Agent U, S, W;
+    Number N1, N2;
+    Function pk, sk, hash, pwd
+
+Knowledge:
+    U: U,S,W,pk(S),pwd(U,S),sk(U),pk(U);
+    S: S,W,pk(W),sk(S),pwd(U,S),U,pk(U);
+    W: W,S,sk(W),pk(W),pk(S);
+
+Actions:
+    # Step 1: User initiates signup with S using their password
+    U -> S: {U,N1,pk(U),hash(pwd(U,S))}pk(S)
+
+    # Step 2: S verifies password and sends challenge
+    S -> U: {S,N1,N2}pk(U)
+
+    # Step 3: U responds to challenge and requests website registration
+    U -> S: {U,N2,W}pk(S)
+
+    # Step 4: S creates certificate for U and forwards to W
+    S -> W: {{U,pk(U),hash(N2)}sk(S)}pk(W)
+
+    # Step 5: W confirms registration to U
+    W -> U: {{U,pk(U),W}sk(W)}pk(U)
+
+Goals:
+    U authenticates S on N1
+    S authenticates U on N2
+    W authenticates S on U,pk(U)
+    U authenticates W on pk(U)
+   
