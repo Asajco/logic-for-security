@@ -11,17 +11,17 @@ Knowledge:
     W: W, U, pk(U), sk(W), pk(W), hash, offer;
 
 Actions:
-    # Step 1: User initiates offer upload with signed offer
-    U -> W: U, N1, {U, offer(U), {U, offer(U)}sk(U)}pk(W)
+    # Step 1: User initiates offer upload with signed offer and plaintext nonce
+    U -> W: U, N1, {offer(U)}sk(U), {U, offer(U)}pk(W)
 
-    # Step 2: Website sends challenge (N2 now sent in plaintext too)
-    W -> U: W, N1, N2, {W, N1, N2}pk(U)
+    # Step 2: Website sends challenge with signed response
+    W -> U: W, N1, N2, {W, U, N1, N2}sk(W)
 
-    # Step 3: User responds to challenge
-    U -> W: {U, N1, N2}pk(W)
+    # Step 3: User responds to challenge with signed response
+    U -> W: U, N1, N2, {U, W, N1, N2}sk(U)
 
     # Step 4: Website confirms offer upload success
-    W -> U: {W, N1, N2, ACCEPTED}pk(U)
+    W -> U: W, N1, N2, {W, U, N1, N2, ACCEPTED}sk(W)
 
 Goals:
     W authenticates U on N2;         # Website verifies the user's response
