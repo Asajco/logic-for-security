@@ -1,0 +1,42 @@
+Protocol: Signup
+
+Types:
+  Agent U,W,s;
+  Number NU,NW,NC;
+  Function pk,pw,hash
+
+Knowledge:
+  U: U,W,s,pk(s),pk(U),inv(pk(U)),pw(U,s),hash;
+  W: W,U,s,pk(W),inv(pk(W)),pk(s),pk(U),hash;
+  s: s,U,W,pk(s),inv(pk(s)),pk(W),pk(U),pw(U,s),hash
+where U != W
+
+Actions:
+  # U initiates registration with website W using password with s
+  # U signs the request to prevent tampering with the intended website
+  U->s: U,W,NU,hash(pw(U,s),NU),{U,W,NU}inv(pk(U))
+  
+  # s verifies the hash and the signature, then creates a credential for U
+  # s also creates a session key for U and W to use
+  s->U: {U,W,NU,hash(pw(U,s),NU)}pw(U,s),{U,W,NU,hash(pw(U,s),NU)}inv(pk(s))
+  
+  # U contacts W directly with the credential from s
+  U->W: U,W,NU,{U,W,NU,hash(pw(U,s),NU)}inv(pk(s))
+  
+  # W verifies s's credential and generates a session key K
+  # W encrypts the session key with U's password hash from s's credential
+  W->s: {U,W,NU,NW}inv(pk(W))
+  
+  # s forwards W's message to U with additional authentication
+  s->U: {W,NU,NW}pw(U,s),{U,W,NU,NW}inv(pk(s))
+  
+  # U proves knowledge of the password to W
+  U->W: {U,W,NU,NW,hash(hash(pw(U,s),NU),NW)}inv(pk(U))
+  
+  # W confirms registration
+  W->U: {U,W,NU,NW,NC}inv(pk(W))
+
+Goals:
+  U authenticates W on NU,NW
+  W authenticates U on NU,NW
+  pw(U,s) secret between U,s
