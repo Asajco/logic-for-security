@@ -1,0 +1,27 @@
+Protocol: BookMarketSearch
+
+Types:
+    Agent U, W;            # U = User (searcher), W = Website
+    Number N1, N2, QUERY, RESULT;
+    Function pk, hash;   # Cryptographic functions
+
+Knowledge:
+    U: U, W, pk(W), pk(U), inv(pk(U)), hash;   # User knows the website, keys, and hash
+    W: W, U, pk(U), pk(W), inv(pk(W)), hash;   # Website knows the user, keys, and hash
+where U!=W 
+
+Actions:
+    # Step 1: User sends search query with nonce
+    U -> W: {U, N1, QUERY}pk(W)
+
+    # Step 2: Website responds with search results and nonce
+    W -> U: {W, N1, N2, RESULT, hash(N1)}pk(U)
+
+    # Step 3: User acknowledges receipt of results with nonce
+    U -> W: {hash(N1,N2)}pk(W)
+
+Goals:
+    QUERY secret between U,W
+    RESULT secret between U,W
+    U authenticates W on N1,RESULT   # User verifies the website's response
+    W authenticates U on N2,QUERY    # Website ensures the search query is authentic
