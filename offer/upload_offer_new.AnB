@@ -11,14 +11,11 @@ Knowledge:
 where U != W
 
 Actions:
-  # U->W: {U, Offer, NU, {hash(U, Offer, NU)}inv(pk(U))}pk(W)
-  # W->U: {W, NW, hash(W, NW, U, Offer, NU, {hash(U,Offer, NU)}inv(pk(U)))}pk(U)
-  # U->W: {hash(W, NW, hash(W, NW, U, Offer, NU, {hash(U,Offer, NU)}inv(pk(U))))}pk(W)
   U->W: {U, Offer, NU}pk(W)
   W->U: {W, NW, hash(NU)}pk(U)
-  U->W: {hash(NW, hash(NU))}pk(W)
+  U->W: {hash(NW, NU)}pk(W)
 
 Goals:
-  W authenticates U on Offer
-  U authenticates W on Offer
+  W authenticates U on NU
+  U authenticates W on NW
   Offer secret between U,W
