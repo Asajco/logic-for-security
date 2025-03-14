@@ -3,32 +3,25 @@ Protocol: Signup
 Types:
   Agent U,W,s;
   Number NU1,NU2, NW, NS;
-  Function pk,hash, uK, wK, pw
+  Function pk,hash, pw
 
 Knowledge:
-  U: U,W,s,pk(s),pk(U),inv(pk(U)),pw(U,s),hash, uK, wK, prf;
-  W: W,U,s,pk(W),inv(pk(W)),pk(s),pk(U),hash, uK, wK, prf;
+  U: U,W,s,pk(s),pk(U),inv(pk(U)),pw(U,s),hash;
+  W: W,U,s,pk(W),inv(pk(W)),pk(s),pk(U),hash;
   s: s,U,W,pk(s),inv(pk(s)),pk(W),pw(U,s),hash
 where U != W
 
 Actions:
-  # U requests a certificate and the public key of W, encrypted with the public key of s
-  U->s: {U,W,NU1,pw(U,s),pk(U)}pk(s)
-
-  # s sends back a certificate for U and the public key of W, encrypted with the public key of U
-  s->U: {NU1,NS,{U,pk(U)}inv(pk(s)), pk(W)}pk(U)
-  
-  # U sends its certificate to W with a fresh nonce
-  U->W: {U, pk(U)}inv(pk(s)),{U, NU2}pk(W)
-
-  # W responds with a challenge on the fresh nonce
-  W->U: {W, NW, hash(U, NU2)}pk(U)
-
-  # U sends a confirmation response the the challenge, the signup is finished
-  U->W: {hash(W, NW, U, NU2)}pk(W)
+  U->s: U,W,{pw(U,s), pk(U), NU1}pk(s)
+  s->U: {pk(W),W}inv(pk(s))
+  U->W: {NU2, U}pk(W)
+  W->s: W,U
+  s->W: {pk(U),U}inv(pk(s))
+  W->U: {NU2, NW, W}pk(U)
+  U->W: {NW}pk(W)
 
 Goals:
-  U authenticates W on NU2,NW
-  W authenticates U on NU2,NW
+  W authenticates U on NU2
+  U authenticates W on NW
   NU2,NW secret between U,W
-  pw(U,s) secret between U,s
+  pw(U,s) guessable secret between U,s#
