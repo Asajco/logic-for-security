@@ -286,3 +286,248 @@ The intruder replays and modifies the nonce N1(1) and the QUERY(1) message.
 The attack traces show that x401 sends a request using a pseudonym and an encrypted hash, but the intruder intercepts and manipulates these values.
 The intruder replays a previously observed message containing the hashed query and attempts to trick x401 into believing it is talking to x402 while actually communicating with the attacker.
 This breaks authentication goals, as x401 does not correctly authenticate x402 on the response, and the attacker can potentially alter or replay search queries.
+# Book E-Market Purchase Protocol
+
+## Complete Protocol Code
+
+### Purchase Protocol - Version 1 (Initial Design)
+```
+Protocol: Purchase
+
+Types:
+  Agent B,S,s;
+  Number NB,NS,BookID,Price,Date,ContractID;
+  Symmetric_key KBS;
+  Function pk,sk,hash
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),sk(B,s),hash;
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),sk(S,s),hash;
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),sk(B,s),sk(S,s),hash
+where B != S
+
+Actions:
+  # B initiates purchase request to s
+  B->s: B,S,NB
+  
+  # s forwards to S with a transaction marker
+  s->S: B,NB,{|B,NB|}sk(S,s)
+  
+  # S sends acknowledgement back with its freshly generated nonce
+  S->s: {|B,NB|}sk(S,s),NS
+  
+  # s generates a session key and ContractID
+  s->B: {|KBS,S,NB,NS,ContractID|}sk(B,s)
+  
+  # B creates contract and sends to s
+  B->s: {|BookID,Price,Date,B,S,NB,NS,ContractID|}KBS
+  
+  # s forwards to S along with the key
+  s->S: {|KBS,B,NB,ContractID|}sk(S,s),{|BookID,Price,Date,B,S,NB,NS,ContractID|}KBS
+  
+  # S signs the hash of the contract and sends to s
+  S->s: {hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(S))
+  
+  # s forwards signature to B
+  s->B: {hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(S))
+  
+  # B signs the hash and sends to s
+  B->s: {hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(B))
+  
+  # s forwards B's signature to S
+  s->S: {hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(B))
+
+Goals:
+  B authenticates S on hash(BookID,Price,Date,B,S,NB,NS,ContractID)
+  S authenticates B on hash(BookID,Price,Date,B,S,NB,NS,ContractID)
+  BookID,Price,Date secret between B,S,s
+```
+
+### Purchase Protocol - Version 2 (Intermediate Design)
+```
+Protocol: Purchase
+
+Types:
+  Agent B,S;
+  Number NB,NS,BookID,Price,Date,ContractID;
+  Function pk,hash
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),hash;
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),hash;
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),hash;
+where B != S
+
+Actions:
+  # B initiates purchase request to S directly
+  B->S: {B,NB}pk(S)
+  
+  # S responds with its nonce and contract ID
+  S->B: {S,NB,NS,ContractID}pk(B)
+  
+  # B creates contract and sends to S
+  B->S: {BookID,Price,Date,B,S,NB,NS,ContractID}pk(S)
+  
+  # S confirms receipt and signs the contract hash
+  S->B: {S,B,NB,NS,ContractID,hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(S))
+  
+  # B signs the same hash and sends to S
+  B->S: {B,S,NB,NS,ContractID,hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(B))
+
+Goals:
+  B authenticates S on NS
+  S authenticates B on NB
+  BookID,Price,Date secret between B,S
+```
+
+### Purchase Protocol - Version 3 (Final Design)
+```
+Protocol: Purchase
+
+Types:
+  Agent B,S,s;
+  Number NB,NS,BookID,Price,Date,ContractID;
+  Function pk,hash
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),hash;
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),hash;
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),hash;
+where B != S
+
+Actions:
+  # B initiates purchase request to S
+  B->S: {B,BookID,NB}pk(S)
+  
+  # S responds with price and contract details
+  S->B: {S,Price,Date,ContractID,NB,NS}pk(B)
+  
+  # B agrees to terms and signs contract
+  B->S: {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B))
+  
+  # S countersigns the contract and confirms receipt of B's signature
+  S->B: {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S)), {B}inv(pk(S))
+  
+  # Optional: B or S can send contract to trusted third party s (encrypted)
+  B->s: {{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B)), {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S))}pk(s)
+
+Goals:
+  B authenticates S on Price,Date,ContractID,NS
+  S authenticates B on BookID,NB
+  BookID,Price,Date,ContractID secret between B,S
+  NB,NS secret between B,S
+```
+
+## Design of the Purchase Protocol
+
+The Purchase protocol enables secure transactions between buyers and sellers on the e-book marketplace. This protocol ensures authentication, confidentiality, integrity, and non-repudiation for both parties, while supporting dispute resolution.
+
+### Participants
+
+- **Buyer (B)**: A registered user who wants to purchase a book.
+- **Seller (S)**: A registered user who is offering a book for sale.
+- **Trusted Third Party (s)**: Optional involvement for dispute resolution.
+
+### Key Features
+
+- Direct communication between buyer and seller without requiring website involvement
+- Cryptographically verifiable contract with digital signatures from both parties
+- Support for legal dispute resolution through signature verification
+- Protection of transaction privacy
+- Prevention of replay attacks using nonces
+
+### Protocol Flow
+
+1. **Initiation**: Buyer sends purchase request with book ID and fresh nonce
+2. **Offer**: Seller responds with price, date, and contract details
+3. **Agreement**: Buyer signs the contract hash to indicate acceptance
+4. **Confirmation**: Seller countersigns the contract hash
+5. **Optional Backup**: Either party can send the signed contract to the trusted third party
+
+### Core Messages
+
+The key messages that establish the contract are:
+- Buyer's signed contract: `{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B))`
+- Seller's signed contract: `{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S))`
+
+These signed hashes contain all essential contract information and provide cryptographic proof of agreement, which is crucial for legal disputes.
+
+## AnB Formalization
+
+```
+Protocol: Purchase
+Types:
+  Agent B,S,s;
+  Number NB,NS,BookID,Price,Date,ContractID;
+  Function pk,hash
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),hash;
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),hash;
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),hash;
+where B != S
+
+Actions:
+  # B initiates purchase request to S
+  B->S: {B,BookID,NB}pk(S)
+  
+  # S responds with price and contract details
+  S->B: {S,Price,Date,ContractID,NB,NS}pk(B)
+  
+  # B agrees to terms and signs contract
+  B->S: {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B))
+  
+  # S countersigns the contract and confirms receipt of B's signature
+  S->B: {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S)), {B}inv(pk(S))
+  
+  # Optional: B or S can send contract to trusted third party s (encrypted)
+  B->s: {{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B)), {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S))}pk(s)
+
+Goals:
+  B authenticates S on Price,Date,ContractID,NS
+  S authenticates B on BookID,NB
+  BookID,Price,Date,ContractID secret between B,S
+  NB,NS secret between B,S
+```
+
+## Development Process and Design Decisions
+
+The purchase protocol underwent multiple iterations to achieve the optimal balance of security, privacy, and practicality:
+
+### Version 1
+The initial design relied heavily on the trusted third party s, which acted as an intermediary throughout the entire transaction. While secure, this approach required constant involvement of s and didn't align with the requirement to minimize website involvement.
+
+### Version 2
+The second version moved to direct communication between buyer and seller, eliminating the need for a trusted intermediary during normal operation. This version still faced challenges with ensuring non-repudiation and clarity for dispute resolution.
+
+### Version 3 (Final)
+The final version refined the direct communication approach while adding optional trusted third-party involvement for dispute resolution. This design achieves:
+
+1. **Minimized Website Involvement**: The website isn't required for the purchase process
+2. **Contract Clarity**: All necessary details are included in signed messages
+3. **Strong Non-repudiation**: Both parties sign the exact same contract hash
+4. **Dispute Resolution Support**: Optional third-party record keeping
+
+## Legal Dispute Resolution
+
+The purchase protocol enables robust dispute resolution in court through cryptographic verification:
+
+### Case 1: Buyer Denies Making a Purchase
+If a buyer denies making a purchase that actually occurred:
+- The seller presents the buyer's signature on the contract hash: `{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B))`
+- The court can verify this signature using the buyer's public key
+- The verified signature proves the buyer agreed to the specific terms
+
+### Case 2: Seller Falsely Claims a Purchase
+If a seller falsely claims a buyer made a purchase:
+- The seller would need to present the buyer's signature on the contract hash
+- Without the legitimate signature (which the seller cannot forge), the claim would be rejected
+- The buyer can demonstrate that no valid signature exists for the claimed contract
+
+### Case 3: Disputes About Contract Terms
+If the parties disagree on what was agreed upon:
+- Both signed contract hashes can be presented in court
+- The contents of the contract (BookID, Price, Date, etc.) are visible in the signed messages
+- The trusted third party s can provide an independent record if needed
+
+This approach ensures that both parties have strong cryptographic evidence of the exact terms they agreed to, without requiring trust in the website or any other party.
