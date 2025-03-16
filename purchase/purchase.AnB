@@ -3,47 +3,32 @@ Protocol: Purchase
 Types:
   Agent B,S,s;
   Number NB,NS,BookID,Price,Date,ContractID;
-  Symmetric_key KBS;
-  Function pk,sk,hash
+  Function pk,hash
 
 Knowledge:
-  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),sk(B,s),hash;
-  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),sk(S,s),hash;
-  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),sk(B,s),sk(S,s),hash
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),hash;
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),hash;
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),hash;
 where B != S
 
 Actions:
-  # B initiates purchase request to s
-  B->s: B,S,NB
+  # B initiates purchase request to S
+  B->S: {B,BookID,NB}pk(S)
   
-  # s forwards to S with a transaction marker
-  s->S: B,NB,{|B,NB|}sk(S,s)
+  # S responds with price and contract details
+  S->B: {S,Price,Date,ContractID,NB,NS}pk(B)
   
-  # S sends acknowledgement back with its freshly generated nonce
-  S->s: {|B,NB|}sk(S,s),NS
+  # B agrees to terms and signs contract
+  B->S: {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B))
   
-  # s generates a session key and ContractID
-  s->B: {|KBS,S,NB,NS,ContractID|}sk(B,s)
+  # S countersigns the contract and confirms receipt of B's signature
+  S->B: {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S)), {B}inv(pk(S))
   
-  # B creates contract and sends to s
-  B->s: {|BookID,Price,Date,B,S,NB,NS,ContractID|}KBS
-  
-  # s forwards to S along with the key
-  s->S: {|KBS,B,NB,ContractID|}sk(S,s),{|BookID,Price,Date,B,S,NB,NS,ContractID|}KBS
-  
-  # S signs the hash of the contract and sends to s
-  S->s: {hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(S))
-  
-  # s forwards signature to B
-  s->B: {hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(S))
-  
-  # B signs the hash and sends to s
-  B->s: {hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(B))
-  
-  # s forwards B's signature to S
-  s->S: {hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(B))
+  # Optional: B or S can send contract to trusted third party s (encrypted)
+  B->s: {{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B)), {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S))}pk(s)
 
 Goals:
-  B authenticates S on hash(BookID,Price,Date,B,S,NB,NS,ContractID)
-  S authenticates B on hash(BookID,Price,Date,B,S,NB,NS,ContractID)
-  BookID,Price,Date secret between B,S,s
+  B authenticates S on Price,Date,ContractID,NS
+  S authenticates B on BookID,NB
+  BookID,Price,Date,ContractID secret between B,S
+  NB,NS secret between B,S
