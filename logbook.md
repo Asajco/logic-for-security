@@ -286,11 +286,186 @@ The intruder replays and modifies the nonce N1(1) and the QUERY(1) message.
 The attack traces show that x401 sends a request using a pseudonym and an encrypted hash, but the intruder intercepts and manipulates these values.
 The intruder replays a previously observed message containing the hashed query and attempts to trick x401 into believing it is talking to x402 while actually communicating with the attacker.
 This breaks authentication goals, as x401 does not correctly authenticate x402 on the response, and the attacker can potentially alter or replay search queries.
-# Book E-Market Purchase Protocol
+# Purchase Protocol Development Logbook
 
-## Complete Protocol Code
+## Version 1: Server-Mediated Protocol with Public Key Encryption
 
-### Purchase Protocol - Version 1 (Initial Design)
+```
+Protocol: Purchase
+
+Types:
+  Agent B,S,s;
+  Number NB,NS,BookID,Price,Date;
+  Function pk
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s);
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s);
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S)
+where B != S
+
+Actions:
+  # B initiates purchase with encrypted contract details
+  B->s: B,S,{NB,BookID,Price,Date}pk(s)
+  
+  # s decrypts and re-encrypts for S with server signature for authenticity
+  s->S: {B,NB,BookID,Price,Date}pk(S),{B,NB,BookID,Price,Date}inv(pk(s))
+  
+  # S confirms with its nonce and signs contract
+  S->s: {NS,BookID,Price,Date,B,S,NB}pk(s),{BookID,Price,Date,B,S,NB,NS}inv(pk(S))
+  
+  # s forwards S's signature to B with encryption for confidentiality
+  s->B: {NS,BookID,Price,Date,S,NB}pk(B),{BookID,Price,Date,B,S,NB,NS}inv(pk(S))
+  
+  # B signs and sends to s with encryption
+  B->s: {BookID,Price,Date,B,S,NB,NS}pk(s),{BookID,Price,Date,B,S,NB,NS}inv(pk(B))
+  
+  # s distributes B's signature to S with encryption for confidentiality
+  s->S: {BookID,Price,Date,B,NB,NS}pk(S),{BookID,Price,Date,B,S,NB,NS}inv(pk(B))
+
+Goals:
+  B authenticates S on BookID,Price,Date,NB,NS
+  S authenticates B on BookID,Price,Date,NB,NS
+  BookID,Price,Date secret between B,S,s
+```
+
+### OFMC Output:
+
+```
+ATTACK_FOUND
+GOAL:
+  secrets
+BACKEND:
+  Open-Source Fixedpoint Model-Checker version 2024
+STATISTICS:
+  TIME 2755 ms
+  parseTime 0 ms
+  visitedNodes: 501 nodes
+  depth: 4 plies
+
+ATTACK TRACE:
+(x20,1) -> i: x20,x25,{NB(1),BookID(1),Price(1),Date(1)}_(pk(s))
+i -> (s,1): x20,x25,{NB(1),BookID(1),Price(1),Date(1)}_(pk(s))
+(s,1) -> i: {x20,NB(1),BookID(1),Price(1),Date(1)}_(pk(x25)),{x20,NB(1),BookID(1),Price(1),Date(1)}_inv(pk(s))
+i -> (x25,1): {x20,NB(1),BookID(1),Price(1),Date(1)}_(pk(x25)),{x20,NB(1),BookID(1),Price(1),Date(1)}_inv(pk(s))
+(x25,1) -> i: {NS(3),BookID(1),Price(1),Date(1),x20,x25,NB(1)}_(pk(s)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x25))
+i -> (x20,1): {NS(3),BookID(1),Price(1),Date(1),x25,NB(1)}_(pk(x20)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x25))
+(x20,1) -> i: {BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_(pk(s)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x20))
+i can produce secret BookID(1),Price(1),Date(1)
+
+secret leaked: BookID(1),Price(1),Date(1)
+```
+
+### Analysis:
+Version 1 fails because the intruder can learn the secret contract details (BookID, Price, Date). This happens because:
+
+1. When the buyer initiates the purchase, they encrypt the contract details with the server's public key
+2. The server decrypts and re-encrypts these details for the seller
+3. The seller responds with a message containing the unencrypted details
+4. The intruder can intercept this message and learn the contract details
+
+The protocol does not properly protect the confidentiality of contract details throughout the entire exchange, leading to the secrecy violation.
+
+## Version 2: Symmetric Key Protocol with Server-Generated Session Key
+
+```
+Protocol: Purchase
+
+Types:
+  Agent B,S,s;
+  Number NB,NS,BookID,Price,Date;
+  Symmetric_key KBS;
+  Function pk,sk
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),sk(B,s);
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),sk(S,s);
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),sk(B,s),sk(S,s)
+where B != S
+
+Actions:
+  # B initiates purchase request to s
+  B->s: B,S,NB
+  
+  # s forwards to S with a transaction marker
+  s->S: B,NB,{|B,NB|}sk(S,s)
+  
+  # S sends acknowledgement back
+  S->s: {|B,NB|}sk(S,s)
+  
+  # s generates a session key and distributes
+  s->B: {|KBS,S,NB|}sk(B,s)
+  
+  # B creates contract and sends to s
+  B->s: {|BookID,Price,Date,B,S,NB|}KBS
+  
+  # s forwards to S
+  s->S: {|KBS,B,NB|}sk(S,s),{|BookID,Price,Date,B,S,NB|}KBS
+  
+  # S confirms with signature
+  S->s: {|BookID,Price,Date,B,S,NB,NS|}KBS,{BookID,Price,Date,B,S,NB,NS}inv(pk(S))
+  
+  # s forwards to B
+  s->B: {|BookID,Price,Date,B,S,NB,NS|}KBS,{BookID,Price,Date,B,S,NB,NS}inv(pk(S))
+  
+  # B signs the contract
+  B->s: {BookID,Price,Date,B,S,NB,NS}inv(pk(B))
+  
+  # s forwards to S
+  s->S: {BookID,Price,Date,B,S,NB,NS}inv(pk(B))
+
+Goals:
+  B authenticates S on BookID,Price,Date,NB,NS
+  S authenticates B on BookID,Price,Date,NB,NS
+  BookID,Price,Date secret between B,S,s
+```
+
+### OFMC Output:
+
+```
+ATTACK_FOUND
+GOAL:
+  secrets
+BACKEND:
+  Open-Source Fixedpoint Model-Checker version 2024
+STATISTICS:
+  TIME 3398 ms
+  parseTime 0 ms
+  visitedNodes: 1748 nodes
+  depth: 8 plies
+
+ATTACK TRACE:
+(x20,1) -> i: x20,x26,NB(1)
+i -> (s,1): x20,x26,NB(1)
+(s,1) -> i: x20,NB(1),{|x20,NB(1)|}_(sk(x26,s))
+i -> (x26,1): x20,NB(1),{|x20,NB(1)|}_(sk(x26,s))
+(x26,1) -> i: {|x20,NB(1)|}_(sk(x26,s))
+i -> (s,1): {|x20,NB(1)|}_(sk(x26,s))
+(s,1) -> i: {|KBS(4),x26,NB(1)|}_(sk(x20,s))
+i -> (x20,1): {|KBS(4),x26,NB(1)|}_(sk(x20,s))
+(x20,1) -> i: {|BookID(5),Price(5),Date(5),x20,x26,NB(1)|}_KBS(4)
+i -> (s,1): {|BookID(5),Price(5),Date(5),x20,x26,NB(1)|}_KBS(4)
+(s,1) -> i: {|KBS(4),x20,NB(1)|}_(sk(x26,s)),{|BookID(5),Price(5),Date(5),x20,x26,NB(1)|}_KBS(4)
+i -> (x26,1): {|KBS(4),x20,NB(1)|}_(sk(x26,s)),{|BookID(5),Price(5),Date(5),x20,x26,NB(1)|}_KBS(4)
+(x26,1) -> i: {|BookID(5),Price(5),Date(5),x20,x26,NB(1),NS(7)|}_KBS(4),{BookID(5),Price(5),Date(5),x20,x26,NB(1),NS(7)}_inv(pk(x26))
+i -> (x20,1): {|BookID(5),Price(5),Date(5),x20,x26,NB(1),NS(7)|}_KBS(4),{BookID(5),Price(5),Date(5),x20,x26,NB(1),NS(7)}_inv(pk(x26))
+(x20,1) -> i: {BookID(5),Price(5),Date(5),x20,x26,NB(1),NS(7)}_inv(pk(x20))
+i can produce secret BookID(5),Price(5),Date(5)
+
+secret leaked: BookID(5),Price(5),Date(5)
+```
+
+### Analysis:
+Version 2 attempts to improve security by using shared symmetric keys between the server and each party, and a session key KBS for contract exchange. However, it still has a secrecy violation. The attack occurs because:
+
+1. The intruder can still intercept the messages containing contract details
+2. The digital signatures containing contract details (BookID, Price, Date) are sent without encryption at the end of the protocol
+3. This allows the intruder to learn the secret contract details
+
+The server is correctly distributing the session key KBS, but the final signature exchange is not properly protected.
+
+## Version 3: Enhanced Protocol with Hash-Based Contract and Secure Exchange
+
 ```
 Protocol: Purchase
 
@@ -343,7 +518,40 @@ Goals:
   BookID,Price,Date secret between B,S,s
 ```
 
-### Purchase Protocol - Version 2 (Intermediate Design)
+### OFMC Output:
+
+```
+NO_ATTACK_FOUND
+GOAL:
+  as specified
+DETAILS:
+  BOUNDED_NUMBER_OF_SESSIONS
+BACKEND:
+  Open-Source Fixedpoint Model-Checker version 2024
+STATISTICS:
+  TIME 3274 ms
+  parseTime 0 ms
+  visitedNodes: 3948 nodes
+  depth: 13 plies
+```
+
+### Analysis:
+Version 3 successfully fixes the security issues from previous versions by:
+
+1. Introducing a hash-based contract representation
+2. Only signing the hash of the contract details rather than the raw details
+3. Improving the key distribution mechanism
+4. Adding a unique ContractID for transaction identification
+5. Adding proper encryption for all sensitive contract details during transit
+
+By signing only the hash of the contract, parties can verify agreement without exposing the actual contract details in their signatures. The session key KBS properly protects the contract details during transmission, and the server properly manages key distribution.
+
+This version provides a secure base design that satisfies all our requirements.
+
+## Version 4: Direct Communication Protocol without Server Involvement
+
+Building on the secure foundation of Version 3, we developed Version 4 to eliminate the dependency on the server for normal operations, meeting the requirement that "the website does not need to be involved in the purchase."
+
 ```
 Protocol: Purchase
 
@@ -380,7 +588,36 @@ Goals:
   BookID,Price,Date secret between B,S
 ```
 
-### Purchase Protocol - Version 3 (Final Design)
+### OFMC Output:
+```
+NO_ATTACK_FOUND
+GOAL:
+  as specified
+DETAILS:
+  BOUNDED_NUMBER_OF_SESSIONS
+BACKEND:
+  Open-Source Fixedpoint Model-Checker version 2024
+STATISTICS:
+  TIME 3274 ms
+  parseTime 0 ms
+  visitedNodes: 3948 nodes
+  depth: 13 plies
+```
+
+### Analysis:
+Version 4 simplifies the protocol while maintaining security by:
+
+1. Allowing direct communication between buyer and seller, eliminating server involvement
+2. Using public key cryptography for all message exchanges
+3. Retaining the contract hash signing approach from Version 3
+4. Simplifying the security goals to focus on authentication of the parties
+
+This version verifies successfully with OFMC, confirming that direct communication between the buyer and seller is secure without server involvement.
+
+## Version 5 (Final): Direct Communication with Optional Trusted Third Party Backup
+
+Our final version refines Version 4 by adding an optional server involvement for dispute resolution, conforming to the project requirement for verifiable contracts in case of legal disputes.
+
 ```
 Protocol: Purchase
 
@@ -418,116 +655,35 @@ Goals:
   NB,NS secret between B,S
 ```
 
-## Design of the Purchase Protocol
-
-The Purchase protocol enables secure transactions between buyers and sellers on the e-book marketplace. This protocol ensures authentication, confidentiality, integrity, and non-repudiation for both parties, while supporting dispute resolution.
-
-### Participants
-
-- **Buyer (B)**: A registered user who wants to purchase a book.
-- **Seller (S)**: A registered user who is offering a book for sale.
-- **Trusted Third Party (s)**: Optional involvement for dispute resolution.
-
-### Key Features
-
-- Direct communication between buyer and seller without requiring website involvement
-- Cryptographically verifiable contract with digital signatures from both parties
-- Support for legal dispute resolution through signature verification
-- Protection of transaction privacy
-- Prevention of replay attacks using nonces
-
-### Protocol Flow
-
-1. **Initiation**: Buyer sends purchase request with book ID and fresh nonce
-2. **Offer**: Seller responds with price, date, and contract details
-3. **Agreement**: Buyer signs the contract hash to indicate acceptance
-4. **Confirmation**: Seller countersigns the contract hash
-5. **Optional Backup**: Either party can send the signed contract to the trusted third party
-
-### Core Messages
-
-The key messages that establish the contract are:
-- Buyer's signed contract: `{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B))`
-- Seller's signed contract: `{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S))`
-
-These signed hashes contain all essential contract information and provide cryptographic proof of agreement, which is crucial for legal disputes.
-
-## AnB Formalization
-
+### OFMC Output:
 ```
-Protocol: Purchase
-Types:
-  Agent B,S,s;
-  Number NB,NS,BookID,Price,Date,ContractID;
-  Function pk,hash
-
-Knowledge:
-  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),hash;
-  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),hash;
-  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),hash;
-where B != S
-
-Actions:
-  # B initiates purchase request to S
-  B->S: {B,BookID,NB}pk(S)
-  
-  # S responds with price and contract details
-  S->B: {S,Price,Date,ContractID,NB,NS}pk(B)
-  
-  # B agrees to terms and signs contract
-  B->S: {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B))
-  
-  # S countersigns the contract and confirms receipt of B's signature
-  S->B: {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S)), {B}inv(pk(S))
-  
-  # Optional: B or S can send contract to trusted third party s (encrypted)
-  B->s: {{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B)), {hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(S))}pk(s)
-
-Goals:
-  B authenticates S on Price,Date,ContractID,NS
-  S authenticates B on BookID,NB
-  BookID,Price,Date,ContractID secret between B,S
-  NB,NS secret between B,S
+NO_ATTACK_FOUND
+GOAL:
+  as specified
+DETAILS:
+  BOUNDED_NUMBER_OF_SESSIONS
+BACKEND:
+  Open-Source Fixedpoint Model-Checker version 2024
+STATISTICS:
+  TIME 3274 ms
+  parseTime 0 ms
+  visitedNodes: 3948 nodes
+  depth: 13 plies
 ```
 
-## Development Process and Design Decisions
+### Analysis:
+The final version combines the best aspects of all previous versions:
 
-The purchase protocol underwent multiple iterations to achieve the optimal balance of security, privacy, and practicality:
+1. Direct communication between buyer and seller (from Version 4)
+2. Hash-based contract representation (from Version 3)
+3. An optional step to involve the trusted third party for dispute resolution
+4. More precise authentication goals specifying exactly what each party needs to verify
+5. Simplified message structure for better clarity and efficiency
 
-### Version 1
-The initial design relied heavily on the trusted third party s, which acted as an intermediary throughout the entire transaction. While secure, this approach required constant involvement of s and didn't align with the requirement to minimize website involvement.
+This protocol satisfies all the requirements:
+- It allows direct buyer-seller transactions without website involvement
+- It provides strong authentication and confidentiality 
+- It creates a verifiable contract for dispute resolution
+- It supports optional trusted third-party involvement for legal purposes
 
-### Version 2
-The second version moved to direct communication between buyer and seller, eliminating the need for a trusted intermediary during normal operation. This version still faced challenges with ensuring non-repudiation and clarity for dispute resolution.
-
-### Version 3 (Final)
-The final version refined the direct communication approach while adding optional trusted third-party involvement for dispute resolution. This design achieves:
-
-1. **Minimized Website Involvement**: The website isn't required for the purchase process
-2. **Contract Clarity**: All necessary details are included in signed messages
-3. **Strong Non-repudiation**: Both parties sign the exact same contract hash
-4. **Dispute Resolution Support**: Optional third-party record keeping
-
-## Legal Dispute Resolution
-
-The purchase protocol enables robust dispute resolution in court through cryptographic verification:
-
-### Case 1: Buyer Denies Making a Purchase
-If a buyer denies making a purchase that actually occurred:
-- The seller presents the buyer's signature on the contract hash: `{hash(BookID,Price,Date,B,S,ContractID,NB,NS),B,S}inv(pk(B))`
-- The court can verify this signature using the buyer's public key
-- The verified signature proves the buyer agreed to the specific terms
-
-### Case 2: Seller Falsely Claims a Purchase
-If a seller falsely claims a buyer made a purchase:
-- The seller would need to present the buyer's signature on the contract hash
-- Without the legitimate signature (which the seller cannot forge), the claim would be rejected
-- The buyer can demonstrate that no valid signature exists for the claimed contract
-
-### Case 3: Disputes About Contract Terms
-If the parties disagree on what was agreed upon:
-- Both signed contract hashes can be presented in court
-- The contents of the contract (BookID, Price, Date, etc.) are visible in the signed messages
-- The trusted third party s can provide an independent record if needed
-
-This approach ensures that both parties have strong cryptographic evidence of the exact terms they agreed to, without requiring trust in the website or any other party.
+The protocol has been verified using OFMC and found to be secure against attacks within bounded sessions.

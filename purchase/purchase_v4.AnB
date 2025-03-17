@@ -1,0 +1,33 @@
+Protocol: Purchase
+
+Types:
+  Agent B,S;
+  Number NB,NS,BookID,Price,Date,ContractID;
+  Function pk,hash
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),hash;
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),hash;
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),hash;
+where B != S
+
+Actions:
+  # B initiates purchase request to S directly
+  B->S: {B,NB}pk(S)
+  
+  # S responds with its nonce and contract ID
+  S->B: {S,NB,NS,ContractID}pk(B)
+  
+  # B creates contract and sends to S
+  B->S: {BookID,Price,Date,B,S,NB,NS,ContractID}pk(S)
+  
+  # S confirms receipt and signs the contract hash
+  S->B: {S,B,NB,NS,ContractID,hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(S))
+  
+  # B signs the same hash and sends to S
+  B->S: {B,S,NB,NS,ContractID,hash(BookID,Price,Date,B,S,NB,NS,ContractID)}inv(pk(B))
+
+Goals:
+  B authenticates S on NS
+  S authenticates B on NB
+  BookID,Price,Date secret between B,S

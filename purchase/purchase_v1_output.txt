@@ -1,0 +1,42 @@
+INPUT:
+   purchase/purchase_v1.AnB
+SUMMARY:
+  ATTACK_FOUND
+GOAL:
+  secrets
+BACKEND:
+  Open-Source Fixedpoint Model-Checker version 2024
+STATISTICS:
+  TIME 2755 ms
+  parseTime 0 ms
+  visitedNodes: 501 nodes
+  depth: 4 plies
+
+ATTACK TRACE:
+(x20,1) -> i: x20,x25,{NB(1),BookID(1),Price(1),Date(1)}_(pk(s))
+i -> (s,1): x20,x25,{NB(1),BookID(1),Price(1),Date(1)}_(pk(s))
+(s,1) -> i: {x20,NB(1),BookID(1),Price(1),Date(1)}_(pk(x25)),{x20,NB(1),BookID(1),Price(1),Date(1)}_inv(pk(s))
+i -> (x25,1): {x20,NB(1),BookID(1),Price(1),Date(1)}_(pk(x25)),{x20,NB(1),BookID(1),Price(1),Date(1)}_inv(pk(s))
+(x25,1) -> i: {NS(3),BookID(1),Price(1),Date(1),x20,x25,NB(1)}_(pk(s)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x25))
+i -> (x20,1): {NS(3),BookID(1),Price(1),Date(1),x25,NB(1)}_(pk(x20)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x25))
+(x20,1) -> i: {BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_(pk(s)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x20))
+i can produce secret BookID(1),Price(1),Date(1)
+
+secret leaked: BookID(1),Price(1),Date(1)
+
+
+% Reached State:
+% 
+% secrets(BookID(1),Price(1),Date(1),secrecyset(x20,1,pBookIDPriceDate),i)
+% witness(x20,x25,pSBBookIDPriceDateNBNS,BookID(1),Price(1),Date(1),NB(1),NS(3))
+% request(x20,x25,pBSBookIDPriceDateNBNS,BookID(1),Price(1),Date(1),NB(1),NS(3),1)
+% state_rB(x20,2,pk(s),pk(x25),inv(pk(x20)),pk(x20),s,x25,inv(pseudonym(x20)),inv(confChCr(x20)),inv(authChCr(x20)),pseudonym(x20),NB(1),BookID(1),Price(1),Date(1),x20,x25,{NB(1),BookID(1),Price(1),Date(1)}_(pk(s)),x513,{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x25)),NS(3),{NS(3),BookID(1),Price(1),Date(1),x25,NB(1)}_(pk(x20)),{NS(3),BookID(1),Price(1),Date(1),x25,NB(1)}_(pk(x20)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x25)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_(pk(s)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x20)),1)
+% contains(secrecyset(x20,1,pBookIDPriceDate),x20)
+% contains(secrecyset(x20,1,pBookIDPriceDate),x25)
+% contains(secrecyset(x20,1,pBookIDPriceDate),s)
+% state_rS(x25,1,pk(s),pk(x20),inv(pk(x25)),pk(x25),s,x20,inv(pseudonym(x25)),inv(confChCr(x25)),inv(authChCr(x25)),pseudonym(x25),{x20,NB(1),BookID(1),Price(1),Date(1)}_inv(pk(s)),Date(1),Price(1),BookID(1),NB(1),{x20,NB(1),BookID(1),Price(1),Date(1)}_(pk(x25)),{x20,NB(1),BookID(1),Price(1),Date(1)}_(pk(x25)),{x20,NB(1),BookID(1),Price(1),Date(1)}_inv(pk(s)),NS(3),{NS(3),BookID(1),Price(1),Date(1),x20,x25,NB(1)}_(pk(s)),{BookID(1),Price(1),Date(1),x20,x25,NB(1),NS(3)}_inv(pk(x25)),1)
+% state_rs(s,1,pk(x25),pk(x20),inv(pk(s)),pk(s),x25,x20,inv(pseudonym(s)),inv(confChCr(s)),inv(authChCr(s)),pseudonym(s),Date(1),Price(1),BookID(1),NB(1),{NB(1),BookID(1),Price(1),Date(1)}_(pk(s)),x20,x25,{NB(1),BookID(1),Price(1),Date(1)}_(pk(s)),{x20,NB(1),BookID(1),Price(1),Date(1)}_(pk(x25)),{x20,NB(1),BookID(1),Price(1),Date(1)}_inv(pk(s)),1)
+% state_rB(x33,0,pk(s),pk(x20),inv(pk(x33)),pk(x33),s,x20,inv(pseudonym(x33)),inv(confChCr(x33)),inv(authChCr(x33)),pseudonym(x33),2)
+% state_rS(x36,0,pk(s),pk(x25),inv(pk(x36)),pk(x36),s,x25,inv(pseudonym(x36)),inv(confChCr(x36)),inv(authChCr(x36)),pseudonym(x36),2)
+% state_rs(s,0,pk(x38),pk(x39),inv(pk(s)),pk(s),x38,x39,inv(pseudonym(s)),inv(confChCr(s)),inv(authChCr(s)),pseudonym(s),2)
+% witness(x25,x20,pBSBookIDPriceDateNBNS,BookID(1),Price(1),Date(1),NB(1),NS(3))

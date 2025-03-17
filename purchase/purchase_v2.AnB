@@ -1,0 +1,49 @@
+Protocol: Purchase
+
+Types:
+  Agent B,S,s;
+  Number NB,NS,BookID,Price,Date;
+  Symmetric_key KBS;
+  Function pk,sk
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s),sk(B,s);
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s),sk(S,s);
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S),sk(B,s),sk(S,s)
+where B != S
+
+Actions:
+  # B initiates purchase request to s
+  B->s: B,S,NB
+  
+  # s forwards to S with a transaction marker
+  s->S: B,NB,{|B,NB|}sk(S,s)
+  
+  # S sends acknowledgement back
+  S->s: {|B,NB|}sk(S,s)
+  
+  # s generates a session key and distributes
+  s->B: {|KBS,S,NB|}sk(B,s)
+  
+  # B creates contract and sends to s
+  B->s: {|BookID,Price,Date,B,S,NB|}KBS
+  
+  # s forwards to S
+  s->S: {|KBS,B,NB|}sk(S,s),{|BookID,Price,Date,B,S,NB|}KBS
+  
+  # S confirms with signature
+  S->s: {|BookID,Price,Date,B,S,NB,NS|}KBS,{BookID,Price,Date,B,S,NB,NS}inv(pk(S))
+  
+  # s forwards to B
+  s->B: {|BookID,Price,Date,B,S,NB,NS|}KBS,{BookID,Price,Date,B,S,NB,NS}inv(pk(S))
+  
+  # B signs the contract
+  B->s: {BookID,Price,Date,B,S,NB,NS}inv(pk(B))
+  
+  # s forwards to S
+  s->S: {BookID,Price,Date,B,S,NB,NS}inv(pk(B))
+
+Goals:
+  B authenticates S on BookID,Price,Date,NB,NS
+  S authenticates B on BookID,Price,Date,NB,NS
+  BookID,Price,Date secret between B,S,s

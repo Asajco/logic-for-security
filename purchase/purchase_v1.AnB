@@ -1,0 +1,36 @@
+Protocol: Purchase
+
+Types:
+  Agent B,S,s;
+  Number NB,NS,BookID,Price,Date;
+  Function pk
+
+Knowledge:
+  B: B,S,s,pk(B),inv(pk(B)),pk(S),pk(s);
+  S: S,B,s,pk(S),inv(pk(S)),pk(B),pk(s);
+  s: s,B,S,pk(s),inv(pk(s)),pk(B),pk(S)
+where B != S
+
+Actions:
+  # B initiates purchase with encrypted contract details
+  B->s: B,S,{NB,BookID,Price,Date}pk(s)
+  
+  # s decrypts and re-encrypts for S with server signature for authenticity
+  s->S: {B,NB,BookID,Price,Date}pk(S),{B,NB,BookID,Price,Date}inv(pk(s))
+  
+  # S confirms with its nonce and signs contract
+  S->s: {NS,BookID,Price,Date,B,S,NB}pk(s),{BookID,Price,Date,B,S,NB,NS}inv(pk(S))
+  
+  # s forwards S's signature to B with encryption for confidentiality
+  s->B: {NS,BookID,Price,Date,S,NB}pk(B),{BookID,Price,Date,B,S,NB,NS}inv(pk(S))
+  
+  # B signs and sends to s with encryption
+  B->s: {BookID,Price,Date,B,S,NB,NS}pk(s),{BookID,Price,Date,B,S,NB,NS}inv(pk(B))
+  
+  # s distributes B's signature to S with encryption for confidentiality
+  s->S: {BookID,Price,Date,B,NB,NS}pk(S),{BookID,Price,Date,B,S,NB,NS}inv(pk(B))
+
+Goals:
+  B authenticates S on BookID,Price,Date,NB,NS
+  S authenticates B on BookID,Price,Date,NB,NS
+  BookID,Price,Date secret between B,S,s
